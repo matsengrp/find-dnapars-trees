@@ -14,3 +14,5 @@ Given a fasta alignment, the script `find-dnapars-trees.sh` submits concurrent d
 ```
 
 should be enough to get a history DAG with a bunch of maximally parsimonious trees in it.
+
+To see script options, do `./find-dnapars-trees.sh -h`.
