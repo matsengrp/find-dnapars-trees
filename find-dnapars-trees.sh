@@ -7,6 +7,7 @@ OUTDIR=output_trees
 FASTA=""
 NUM_SEEDS=5
 OUTGROUP="naive"
+AGGSPLIT=10
 
 print_help()
 {
@@ -26,13 +27,14 @@ times the value passed to -n."
     echo "-o    Specify an output directory for created trees"
     echo "          (default a directory called '$OUTDIR' in the current directory)"
     echo "-r    Specify an outgroup directory for created trees (default '$OUTGROUP')"
+    echo "-s    Specify how many dnapars outfiles to assign to each aggregation job (default '$AGGSPLIT')"
     echo "-h    Print this help message and exit"
     echo
 }
 
 
 # getopts expects ':' after options that expect an argument
-while getopts "n:f:ho:r:" option; do
+while getopts "n:f:ho:r:s:" option; do
     case $option in
         n)
             NUM_SEEDS=$OPTARG;;
@@ -45,6 +47,8 @@ while getopts "n:f:ho:r:" option; do
             OUTDIR=$OPTARG;;
         r)
             OUTGROUP=$OPTARG;;
+        s)
+            AGGSPLIT=$OPTARG;;
     esac
 done
 
@@ -72,8 +76,24 @@ do
     NJOBS=$(squeue -l -u $USER | wc -l)
     [ $NJOBS == 2 ] && break
 done
-
 # Now all jobs are finished!
 
-python aggregate_dnapars_trees.py $TMPDIR $OUTDIR $OUTGROUP
-rm -rf $TMPDIR
+DAGDIR=$TMPDIR/dags
+mkdir -p $DAGDIR
+jobidx=0
+ls -d $TMPDIR/run_*/ | xargs -n $AGGSPLIT | while read args; do
+    jobidx=$(expr $jobidx + 1)
+    echo $args | xargs sbatch -c 1 -J ag$jobidx -o $DAGDIR/agg$jobidx.log ./aggregate_script.sh $OUTGROUP $DAGDIR/dag$jobidx.p
+done
+
+while :
+do
+    sleep 40
+    NJOBS=$(squeue -l -u $USER | wc -l)
+    [ $NJOBS == 2 ] && break
+done
+# Now all jobs are finished!
+
+#change args here:
+python aggregate_dags.py $DAGDIR $OUTDIR/full_dag.p
+# rm -rf $TMPDIR
